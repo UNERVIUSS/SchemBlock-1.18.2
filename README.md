@@ -1,2 +1,1 @@
-import com.example.schemblockplacer.commands.*;
-import com.example.schemblockplacer.events.BlockPlaceHandler;
+rootProject.name = 'SchemBlock-1.18.2'
