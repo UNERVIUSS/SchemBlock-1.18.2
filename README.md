@@ -15,15 +15,26 @@ public class CommandSchemList {
                 .executes(ctx -> {
                     if (SchematicBlockPlacer.BLOCK_TO_SCHEM.isEmpty()) {
                         ctx.getSource().sendSuccess(
-                            Component.literal("Нет привязанных схем."),
+                            Component.literal("§6Нет привязанных схем."),
                             false
                         );
                     } else {
-                        SchematicBlockPlacer.BLOCK_TO_SCHEM.forEach((block, schem) -> 
+                        ctx.getSource().sendSuccess(
+                            Component.literal("§a=== Привязанные схемы ==="),
+                            false
+                        );
+                        
+                        SchematicBlockPlacer.BLOCK_TO_SCHEM.forEach((block, schem) -> {
                             ctx.getSource().sendSuccess(
-                                Component.literal(block + " → " + schem),
+                                Component.literal("§e- §b" + block + " §7→ §f" + schem),
                                 false
-                            ));
+                            );
+                        });
+                        
+                        ctx.getSource().sendSuccess(
+                            Component.literal("§aВсего: §e" + SchematicBlockPlacer.BLOCK_TO_SCHEM.size()),
+                            false
+                        );
                     }
                     return Command.SINGLE_SUCCESS;
                 })
