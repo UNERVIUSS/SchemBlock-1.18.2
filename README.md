@@ -7,24 +7,24 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-public class CommandSchem {
+public class CommandSchemList {
     @SubscribeEvent
     public static void onCommandRegister(RegisterCommandsEvent event) {
         event.getDispatcher().register(
-            Commands.literal("2")
+            Commands.literal("2list")
                 .executes(ctx -> {
-                    if (ctx.getSource().getPlayer() == null) return 0;
-                    
-                    String blockId = ctx.getSource().getPlayer()
-                        .getMainHandItem()
-                        .getItem()
-                        .getRegistryName()
-                        .toString();
-                    
-                    ctx.getSource().sendSuccess(
-                        Component.literal("Введите название схемы для блока " + blockId),
-                        false
-                    );
+                    if (SchematicBlockPlacer.BLOCK_TO_SCHEM.isEmpty()) {
+                        ctx.getSource().sendSuccess(
+                            Component.literal("Нет привязанных схем."),
+                            false
+                        );
+                    } else {
+                        SchematicBlockPlacer.BLOCK_TO_SCHEM.forEach((block, schem) -> 
+                            ctx.getSource().sendSuccess(
+                                Component.literal(block + " → " + schem),
+                                false
+                            ));
+                    }
                     return Command.SINGLE_SUCCESS;
                 })
         );
