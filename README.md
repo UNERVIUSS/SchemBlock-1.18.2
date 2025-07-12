@@ -1,8 +1,1 @@
-pluginManagement {
-    repositories {
-        maven { 
-            url = 'https://maven.minecraftforge.net/'
-        }
-        gradlePluginPortal()
-    }
-}
+distributionUrl=https\://services.gradle.org/distributions/gradle-7.4-bin.zip
