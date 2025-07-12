@@ -4,36 +4,49 @@ import com.example.schemblockplacer.SchematicBlockPlacer;
 import com.mojang.brigadier.Command;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-public class CommandSchemList {
+public class CommandSchemDelete {
     @SubscribeEvent
     public static void onCommandRegister(RegisterCommandsEvent event) {
         event.getDispatcher().register(
-            Commands.literal("2list")
+            Commands.literal("2delete")
                 .executes(ctx -> {
-                    if (SchematicBlockPlacer.BLOCK_TO_SCHEM.isEmpty()) {
+                    if (ctx.getSource().getPlayer() == null) {
+                        ctx.getSource().sendFailure(
+                            Component.literal("§cКоманда доступна только игрокам!")
+                        );
+                        return 0;
+                    }
+
+                    ItemStack heldItem = ctx.getSource().getPlayer().getMainHandItem();
+                    if (heldItem.isEmpty()) {
+                        ctx.getSource().sendFailure(
+                            Component.literal("§cДержите блок в руке!")
+                        );
+                        return 0;
+                    }
+
+                    String blockId = heldItem.getItem().getRegistryName().toString();
+                    if (blockId == null) {
+                        ctx.getSource().sendFailure(
+                            Component.literal("§cНевозможно определить ID блока")
+                        );
+                        return 0;
+                    }
+
+                    if (SchematicBlockPlacer.BLOCK_TO_SCHEM.containsKey(blockId)) {
+                        String removedSchem = SchematicBlockPlacer.BLOCK_TO_SCHEM.remove(blockId);
                         ctx.getSource().sendSuccess(
-                            Component.literal("§6Нет привязанных схем."),
+                            Component.literal("§aПривязка удалена: §e" + blockId + " §7→ §f" + removedSchem),
                             false
                         );
+                        SchematicBlockPlacer.saveBindings();
                     } else {
-                        ctx.getSource().sendSuccess(
-                            Component.literal("§a=== Привязанные схемы ==="),
-                            false
-                        );
-                        
-                        SchematicBlockPlacer.BLOCK_TO_SCHEM.forEach((block, schem) -> {
-                            ctx.getSource().sendSuccess(
-                                Component.literal("§e- §b" + block + " §7→ §f" + schem),
-                                false
-                            );
-                        });
-                        
-                        ctx.getSource().sendSuccess(
-                            Component.literal("§aВсего: §e" + SchematicBlockPlacer.BLOCK_TO_SCHEM.size()),
-                            false
+                        ctx.getSource().sendFailure(
+                            Component.literal("§cДля блока §e" + blockId + " §cнет привязки!")
                         );
                     }
                     return Command.SINGLE_SUCCESS;
