@@ -1,82 +1,99 @@
-package com.unerviuss.schemblock;
-
-import com.unerviuss.schemblock.commands.TwoBind;
-import com.unerviuss.schemblock.commands.TwoDelete;
-import com.unerviuss.schemblock.commands.TwoList;
-import com.unerviuss.schemblock.commands.TwoShare;
-import com.unerviuss.schemblock.handler.BlockPlaceHandler;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.fml.common.Mod;
-
-@Mod(SchemBlock.MODID)
-public class SchemBlock {
-    public static final String MODID = "schemblock";
-
-    public SchemBlock() {
-        MinecraftForge.EVENT_BUS.register(new BlockPlaceHandler());
-        MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
-    }
-
-    private void onRegisterCommands(RegisterCommandsEvent event) {
-        TwoBind.register(event.getDispatcher());
-        TwoDelete.register(event.getDispatcher());
-        TwoList.register(event.getDispatcher());
-        TwoShare.register(event.getDispatcher());
-    }
-}
-
-package com.unerviuss.schemblock.data;
-
-import java.util.HashMap;
-import java.util.Map;
-
-public class SchemData {
-    private static final Map<String, String> bindings = new HashMap<>();
-
-    public static void bind(String blockId, String schemName) {
-        bindings.put(blockId, schemName);
-    }
-
-    public static void delete(String blockId) {
-        bindings.remove(blockId);
-    }
-
-    public static Map<String, String> getAll() {
-        return bindings;
-    }
-
-    public static String getSchem(String blockId) {
-        return bindings.get(blockId);
-    }
-}
-
-package com.unerviuss.schemblock.handler;
+package com.unerviuss.schemblock.commands;
 
 import com.unerviuss.schemblock.data.SchemData;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.Block;
-import net.minecraftforge.event.world.BlockEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.world.item.ItemStack;
 
-public class BlockPlaceHandler {
-    @SubscribeEvent
-    public void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+public class TwoBind {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
+            Commands.literal("2")
+                .then(Commands.argument("schemName", net.minecraft.commands.arguments.StringArgumentType.string())
+                    .executes(ctx -> {
+                        ItemStack held = ctx.getSource().getPlayerOrException().getMainHandItem();
+                        String blockId = held.getItem().getRegistryName().toString();
+                        String schem = net.minecraft.commands.arguments.StringArgumentType.getString(ctx, "schemName");
 
-        Block block = event.getPlacedBlock().getBlock();
-        String blockId = block.getRegistryName().toString();
-        String schem = SchemData.getSchem(blockId);
+                        SchemData.bind(blockId, schem);
+                        ctx.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("Bound block " + blockId + " to schematic: " + schem), false);
+                        return 1;
+                    })
+                )
+        );
+    }
+}
 
-        if (schem != null) {
-            BlockPos pos = event.getPos();
+package com.unerviuss.schemblock.commands;
 
-            // Заглушка: вставка схемы через команды
-            player.server.getCommands().performCommand(player.createCommandSourceStack(), "schem load " + schem);
-            player.server.getCommands().performCommand(player.createCommandSourceStack(),
-                    "setblock " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " minecraft:air");
-            player.server.getCommands().performCommand(player.createCommandSourceStack(), "paste");
-        }
+import com.unerviuss.schemblock.data.SchemData;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.world.item.ItemStack;
+
+public class TwoDelete {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
+            Commands.literal("2delete")
+                .executes(ctx -> {
+                    ItemStack held = ctx.getSource().getPlayerOrException().getMainHandItem();
+                    String blockId = held.getItem().getRegistryName().toString();
+                    SchemData.delete(blockId);
+                    ctx.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("Removed binding from block: " + blockId), false);
+                    return 1;
+                })
+        );
+    }
+}
+
+package com.unerviuss.schemblock.commands;
+
+import com.unerviuss.schemblock.data.SchemData;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+
+public class TwoList {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
+            Commands.literal("2list")
+                .executes(ctx -> {
+                    ctx.getSource().sendSuccess(() -> Component.literal("Bindings list:"), false);
+                    SchemData.getAll().forEach((block, schem) -> {
+                        ctx.getSource().sendSuccess(() -> Component.literal(block + " -> " + schem), false);
+                    });
+                    return 1;
+                })
+        );
+    }
+}
+
+package com.unerviuss.schemblock.commands;
+
+import com.unerviuss.schemblock.data.SchemData;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ClickEvent;
+
+public class TwoShare {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
+            Commands.literal("2share")
+                .executes(ctx -> {
+                    StringBuilder sb = new StringBuilder();
+                    SchemData.getAll().forEach((block, schem) -> sb.append(block).append("->").append(schem).append(" "));
+
+                    Component message = Component.literal("[Click to copy bindings]")
+                            .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, sb.toString())));
+
+                    ctx.getSource().sendSuccess(() -> message, false);
+                    return 1;
+                })
+        );
     }
 }
