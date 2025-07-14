@@ -1,50 +1,61 @@
-plugins {
-    id 'eclipse'
-    id 'idea'
-    id 'net.minecraftforge.gradle' version '5.1.+'
-}
+package unerviuss.schemblock;
 
-version = '1.0'
-group = 'com.example.schemblockplacer'
+import unerviuss.schemblock.commands.*;
+import unerviuss.schemblock.handler.BlockPlaceHandler;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
-base {
-    archivesName = 'SchemBlockPlacer'
-}
+@Mod("schemblock")
+public class SchemBlock {
+    public SchemBlock() {
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::clientSetup);
+        MinecraftForge.EVENT_BUS.register(new BlockPlaceHandler());
+        MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
+    }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+    private void clientSetup(final FMLClientSetupEvent event) {
+        // пока пусто
+    }
 
-minecraft {
-    mappings channel: 'official', version: '1.18.2'
-    runs {
-        client {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-            mods {
-                schemblockplacer {
-                    source sourceSets.main
-                }
-            }
-        }
+    private void onRegisterCommands(RegisterCommandsEvent event) {
+        CommandBind.register(event.getDispatcher());
+        CommandDelete.register(event.getDispatcher());
+        CommandList.register(event.getDispatcher());
+        CommandShare.register(event.getDispatcher());
     }
 }
 
-repositories {
-    maven {
-        url "https://maven.minecraftforge.net"
+package unerviuss.schemblock.data;
+
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class SchemData {
+    public static Map<Item, String> bindings = new HashMap<>();
+
+    public static void bind(Item item, String schem) {
+        bindings.put(item, schem);
     }
-}
 
-dependencies {
-    minecraft 'net.minecraftforge:forge:1.18.2-40.2.9'
-}
+    public static void unbind(Item item) {
+        bindings.remove(item);
+    }
 
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-            version: version
-    ]
-    inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml']) {
-        expand replaceProperties + [project: project]
+    public static String getBoundSchem(Item item) {
+        return bindings.get(item);
+    }
+
+    public static Map<Item, String> getAllBindings() {
+        return bindings;
+    }
+
+    static {
+        bindings.put(Items.GOLD_BLOCK, "castle.schem");
     }
 }
