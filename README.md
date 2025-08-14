@@ -1,128 +1,120 @@
-package unerviuss.schemblock.commands;
+-- Сохраните как 'google_browser.lua'
+-- Требуется монитор и интернет-подключение
 
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import unerviuss.schemblock.data.SchemData;
+-- Настройки
+local monitorSide = "top"     -- Сторона подключения монитора
+local googleButtonText = "Google"
+local defaultSite = "https://www.google.com"
 
-public class CommandBind {
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("2")
-            .then(Commands.argument("schem", StringArgumentType.string())
-                .executes(ctx -> {
-                    var player = ctx.getSource().getPlayerOrException();
-                    var item = player.getMainHandItem().getItem();
-                    String schem = StringArgumentType.getString(ctx, "schem");
-                    SchemData.bind(item, schem);
-                    ctx.getSource().sendSuccess(() ->
-                        net.minecraft.network.chat.Component.literal("Привязано: " + schem), false);
-                    return 1;
-                })));
-    }
-}
+-- Инициализация
+local monitor = peripheral.wrap(monitorSide)
+if not monitor then error("Монитор не подключен") end
+term.redirect(monitor)
+monitor.setTextScale(0.5)
+local w, h = monitor.getSize()
 
-package unerviuss.schemblock.commands;
+-- Отрисовка интерфейса
+local function drawUI()
+    monitor.setBackgroundColor(colors.black)
+    monitor.clear()
+    
+    -- Кнопка Google
+    monitor.setBackgroundColor(colors.blue)
+    local btnWidth = #googleButtonText + 4
+    local btnX = math.floor((w - btnWidth) / 2)
+    local btnY = math.floor(h / 3)
+    
+    monitor.setCursorPos(btnX, btnY)
+    monitor.write(string.rep(" ", btnWidth))
+    monitor.setCursorPos(btnX, btnY + 1)
+    monitor.write("  " .. googleButtonText .. "  ")
+    monitor.setCursorPos(btnX, btnY + 2)
+    monitor.write(string.rep(" ", btnWidth))
+    
+    -- URL-бар
+    monitor.setBackgroundColor(colors.gray)
+    monitor.setCursorPos(1, h)
+    monitor.write(string.rep(" ", w))
+    monitor.setCursorPos(2, h)
+    monitor.setTextColor(colors.white)
+    monitor.write("URL: ")
+    
+    return btnX, btnY, btnWidth, 3
+end
 
-import com.mojang.brigadier.CommandDispatcher;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import unerviuss.schemblock.data.SchemData;
+-- Загрузка сайта
+local function browse(url)
+    monitor.clear()
+    monitor.setCursorPos(1, 1)
+    monitor.setTextColor(colors.white)
+    monitor.setBackgroundColor(colors.black)
+    monitor.write("Загрузка: " .. url)
+    
+    local response = http.get(url)
+    if not response then
+        monitor.setCursorPos(1, 3)
+        monitor.setTextColor(colors.red)
+        monitor.write("Ошибка загрузки")
+        return
+    end
+    
+    local html = response.readAll()
+    response.close()
+    
+    -- Простое текстовое отображение
+    monitor.clear()
+    monitor.setCursorPos(1, 1)
+    
+    local lines = {}
+    for line in html:gmatch("[^\r\n]+") do
+        local clean = line:gsub("<[^>]+>", ""):gsub("%s+", " ")
+        if #clean > 0 then
+            table.insert(lines, clean)
+        end
+    end
+    
+    for i = 1, math.min(#lines, h * 2) do
+        if i % 2 == 0 then
+            monitor.setTextColor(colors.lightGray)
+        else
+            monitor.setTextColor(colors.white)
+        end
+        monitor.setCursorPos(1, math.ceil(i / 2) + 1)
+        monitor.write(lines[i]:sub(1, w))
+    end
+end
 
-public class CommandDelete {
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("2delete")
-            .executes(ctx -> {
-                var player = ctx.getSource().getPlayerOrException();
-                var item = player.getMainHandItem().getItem();
-                SchemData.unbind(item);
-                ctx.getSource().sendSuccess(() ->
-                    net.minecraft.network.chat.Component.literal("Привязка удалена"), false);
-                return 1;
-            }));
-    }
-}
-
-package unerviuss.schemblock.commands;
-
-import com.mojang.brigadier.CommandDispatcher;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import unerviuss.schemblock.data.SchemData;
-
-public class CommandList {
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("2list")
-            .executes(ctx -> {
-                SchemData.getAllBindings().forEach((item, schem) -> {
-                    ctx.getSource().sendSuccess(() ->
-                        net.minecraft.network.chat.Component.literal(item.toString() + " -> " + schem), false);
-                });
-                return 1;
-            }));
-    }
-}
-
-package unerviuss.schemblock.handler;
-
-import unerviuss.schemblock.data.SchemData;
-import net.minecraftforge.event.world.BlockEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.commands.CommandSourceStack;
-
-public class BlockPlaceHandler {
-    @SubscribeEvent
-    public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-
-        var item = event.getPlacedBlock().getBlock().asItem();
-        String schem = SchemData.getBoundSchem(item);
-        if (schem != null) {
-            try {
-                String cmd = String.format("schem load %s; setblock %d %d %d minecraft:air; paste",
-                    schem,
-                    event.getPos().getX(), event.getPos().getY(), event.getPos().getZ());
-                player.getServer().getCommands().performCommand(
-                    new CommandSourceStack(player, player.position(), player.getRotationVector(),
-                    player.getLevel() instanceof net.minecraft.server.level.ServerLevel sl ? sl : null, 4,
-                    player.getName().getString(), player.getDisplayName(),
-                    player.getServer(), player), cmd);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
-}
-
-package unerviuss.schemblock.data;
-
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
-
-import java.util.HashMap;
-import java.util.Map;
-
-public class SchemData {
-    public static Map<Item, String> bindings = new HashMap<>();
-
-    public static void bind(Item item, String schem) {
-        bindings.put(item, schem);
-    }
-
-    public static void unbind(Item item) {
-        bindings.remove(item);
-    }
-
-    public static String getBoundSchem(Item item) {
-        return bindings.get(item);
-    }
-
-    public static Map<Item, String> getAllBindings() {
-        return bindings;
-    }
-
-    static {
-        bindings.put(Items.GOLD_BLOCK, "castle.schem");
-    }
-}
+-- Основной цикл
+while true do
+    local btnX, btnY, btnW, btnH = drawUI()
+    monitor.setBackgroundColor(colors.black)
+    monitor.setCursorPos(1, 1)
+    monitor.write("Браузер CC: Tweaked")
+    
+    while true do
+        local event, side, x, y = os.pullEvent("monitor_touch")
+        if side == monitorSide then
+            -- Клик по кнопке Google
+            if x >= btnX and x < btnX + btnW and y >= btnY and y < btnY + btnH then
+                browse(defaultSite)
+                break
+            -- Клик по URL-бару
+            elseif y == h then
+                monitor.setCursorPos(7, h)
+                monitor.setBackgroundColor(colors.black)
+                monitor.setTextColor(colors.white)
+                monitor.write(string.rep(" ", w - 7))
+                monitor.setCursorPos(7, h)
+                
+                local url = read()
+                if url and url ~= "" then
+                    if not url:find("://") then
+                        url = "http://" .. url
+                    end
+                    browse(url)
+                    break
+                end
+            end
+        end
+    end
+end
